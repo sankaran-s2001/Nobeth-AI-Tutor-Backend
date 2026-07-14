@@ -31,5 +31,6 @@ brutal_test_runner.py
 database_reference_guide.txt
 sample ref
 seed_db.py
+seed_dummy_users.py
 seed_chat_cache.py
 nobeth_ai_tutor_postman_collection.json
