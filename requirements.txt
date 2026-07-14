@@ -22,6 +22,7 @@ qdrant-client==1.18.0
 # ==============================
 # Remote Hugging Face Inference API is used for embeddings.
 # Heavy local models (torch, sentence-transformers, transformers) are removed to comply with 512MB RAM free-tier limits.
+huggingface-hub==1.22.0
 
 
 # ==============================
