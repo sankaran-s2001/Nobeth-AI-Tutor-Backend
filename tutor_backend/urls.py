@@ -4,8 +4,7 @@ from tutor_app.views.auth import login_view, me_view, logout_view, forgot_passwo
 from tutor_app.views.dashboard import dashboard_stats_view, log_study_view, update_goal_view
 from tutor_app.views.chat import (
     list_sessions_view, create_session_view, session_detail_view,
-    query_tutor_view, toggle_pin_session_view, sample_questions_view,
-    debug_hf_view
+    query_tutor_view, toggle_pin_session_view, sample_questions_view
 )
 from tutor_app.views.content import list_books_view
 
@@ -35,8 +34,5 @@ urlpatterns = [
     
     # ── Content Management Endpoints ──
     path('api/content/books', list_books_view, name='list_books'),
-    
-    # ── Debug Endpoints ──
-    path('api/debug-hf', debug_hf_view, name='debug_hf'),
 ]
 

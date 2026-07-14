@@ -404,33 +404,3 @@ def sample_questions_view(request):
         )
 
 
-@api_view(['GET'])
-def debug_hf_view(request):
-    import traceback
-    import os
-    from tutor_app.utils.rag_service import HuggingFaceInferenceEmbeddings
-    
-    debug_info = {}
-    debug_info["HF_TOKEN_exists"] = bool(os.getenv("HF_TOKEN"))
-    debug_info["HF_TOKEN_len"] = len(os.getenv("HF_TOKEN", ""))
-    debug_info["EMBEDDING_MODEL"] = os.getenv("EMBEDDING_MODEL")
-    
-    try:
-        emb = HuggingFaceInferenceEmbeddings()
-        debug_info["init_success"] = True
-        debug_info["api_token_exists"] = bool(emb.api_token)
-        debug_info["api_token_len"] = len(emb.api_token) if emb.api_token else 0
-        debug_info["model_name"] = emb.model_name
-        
-        # Try a quick feature extraction
-        res = emb.client.feature_extraction(text="hello", model=emb.model_name)
-        debug_info["extraction_success"] = True
-        debug_info["extraction_result_type"] = str(type(res))
-    except Exception as e:
-        debug_info["init_success"] = False
-        debug_info["error"] = str(e)
-        debug_info["traceback"] = traceback.format_exc()
-        
-    return Response(debug_info, status=200)
-
-
