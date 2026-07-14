@@ -1,0 +1,51 @@
+# ==============================
+# Core Framework
+# ==============================
+Django==5.2.16
+djangorestframework==3.17.1
+django-cors-headers==4.9.0
+
+# ==============================
+# Environment
+# ==============================
+python-dotenv==1.2.2
+
+# ==============================
+# Database
+# ==============================
+pymongo==4.17.0
+qdrant-client==1.18.0
+
+# ==============================
+# ==============================
+# AI / Machine Learning
+# ==============================
+# Remote Hugging Face Inference API is used for embeddings.
+# Heavy local models (torch, sentence-transformers, transformers) are removed to comply with 512MB RAM free-tier limits.
+
+
+# ==============================
+# LLM
+# ==============================
+groq==1.5.0
+
+# ==============================
+# Authentication & Security
+# ==============================
+bcrypt==5.0.0
+PyJWT==2.13.0
+
+# ==============================
+# Production Server
+# ==============================
+gunicorn==26.0.0
+
+# ==============================
+# Production & RAG Ecosystem
+# ==============================
+langchain==0.3.7
+langchain-community==0.3.5
+langchain-groq==0.2.1
+django-redis==5.4.0
+redis==5.2.0
+celery==5.4.0

@@ -1,0 +1,35 @@
+# Virtual Environment
+AI-Tutor-venv/
+venv/
+ENV/
+env/
+
+# Django Secrets & Database
+.env
+db.sqlite3
+
+# Python Caches & Compiled bytecode
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs & Runtime Files
+*.log
+celerybeat-schedule
+celerybeat.pid
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Local Development, Reference Docs, Testing and Seeding Scripts
+brutal_test_runner.py
+database_reference_guide.txt
+sample ref
+seed_db.py
+seed_chat_cache.py
+nobeth_ai_tutor_postman_collection.json
