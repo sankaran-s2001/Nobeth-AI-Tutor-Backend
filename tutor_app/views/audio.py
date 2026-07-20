@@ -103,12 +103,12 @@ def speak_view(request):
         client = Groq(api_key=api_key)
         response = client.audio.speech.create(
             model="canopylabs/orpheus-v1-english",
-            voice="dan",
+            voice="daniel",
             input=cleaned_text,
             response_format="wav"
         )
         
-        django_res = HttpResponse(response.content, content_type="audio/wav")
+        django_res = HttpResponse(response.read(), content_type="audio/wav")
         django_res['Content-Disposition'] = 'attachment; filename="speech.wav"'
         return django_res
     except Exception as e:
