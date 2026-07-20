@@ -7,6 +7,7 @@ from tutor_app.views.chat import (
     query_tutor_view, toggle_pin_session_view, sample_questions_view
 )
 from tutor_app.views.content import list_books_view
+from tutor_app.views.audio import transcribe_view, speak_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -34,5 +35,11 @@ urlpatterns = [
     
     # ── Content Management Endpoints ──
     path('api/content/books', list_books_view, name='list_books'),
+
+    # ── Audio Endpoints (STT & TTS) ──
+    path('api/transcribe', transcribe_view, name='transcribe'),
+    path('api/audio/transcribe', transcribe_view, name='audio_transcribe'),
+    path('api/speak', speak_view, name='speak'),
+    path('api/audio/speak', speak_view, name='audio_speak'),
 ]
 
