@@ -358,6 +358,34 @@ def _get_last_question(chat_history: list) -> str | None:
     return None
 
 
+def _is_generic_query(q_text: str) -> bool:
+    """Checks if a query is a generic follow-up without topic content (e.g. 'explain simply')."""
+    generic_patterns = [
+        "explain more", "explain it more", "explain further", "break it down",
+        "can you explain", "tell me more", "clarify", "briefly", "more details",
+        "explain", "elaborate", "simplify", "help me understand", "diagram",
+        "draw", "figure", "sketch", "image", "show me", "picture", "illustration", "visual"
+    ]
+    q_clean = (q_text or "").lower().strip().replace("?", "").replace(".", "").replace(",", "")
+    return any(pat in q_clean for pat in generic_patterns) or len(q_clean.split()) <= 4
+
+
+def _get_latest_topic_question(chat_history: list) -> str | None:
+    """Traverses backward in history to find the first non-generic topic question."""
+    if not chat_history:
+        return None
+    for turn in reversed(chat_history):
+        q = turn.get("query", "").strip()
+        if q and not _is_generic_query(q):
+            return q
+    # If all are generic, fall back to the very first query in history
+    for turn in chat_history:
+        q = turn.get("query", "").strip()
+        if q:
+            return q
+    return None
+
+
 # ─────────────────────────────────────────────────────────────
 # QDRANT DIAGRAM FETCHER  (global_pdf_diagrams collection)
 # ─────────────────────────────────────────────────────────────
@@ -539,17 +567,20 @@ def fetch_diagram_from_qdrant(
                 debug_info["steps"].append("No matching diagrams found in collection")
             return None
 
+        is_global_match = (top_hit == global_hit) if (global_hit is not None) else False
+        effective_threshold = 0.80 if is_global_match else similarity_threshold
+
         logger.info(
             f"[DIAGRAM] Query='{image_name}' | "
             f"Matched='{top_hit.payload.get('topic')}' | "
-            f"Score={top_score:.4f} | Threshold={similarity_threshold}"
+            f"Score={top_score:.4f} | Threshold={effective_threshold} (is_global={is_global_match})"
         )
 
         payload = top_hit.payload or {}
-        if top_score >= similarity_threshold:
+        if top_score >= effective_threshold:
             if debug_info is not None:
                 debug_info["status"] = "success"
-                debug_info["reason"] = f"Best match score {top_score:.4f} >= similarity threshold {similarity_threshold}"
+                debug_info["reason"] = f"Best match score {top_score:.4f} >= similarity threshold {effective_threshold}"
                 debug_info["steps"].append("Match approved by similarity threshold check")
                 debug_info["match"] = {
                     "topic": payload.get("topic"),
@@ -563,10 +594,10 @@ def fetch_diagram_from_qdrant(
                 "score":    round(top_score, 4),
             }
 
-        logger.info(f"[DIAGRAM] Score {top_score:.4f} below threshold — no image returned.")
+        logger.info(f"[DIAGRAM] Score {top_score:.4f} below threshold {effective_threshold} — no image returned.")
         if debug_info is not None:
             debug_info["status"] = "blocked"
-            debug_info["reason"] = f"Best match score {top_score:.4f} is below similarity threshold {similarity_threshold}"
+            debug_info["reason"] = f"Best match score {top_score:.4f} is below similarity threshold {effective_threshold}"
             debug_info["steps"].append("Match rejected by similarity threshold check")
             debug_info["best_rejected_match"] = {
                 "topic": payload.get("topic"),
@@ -668,7 +699,7 @@ def execute_rag_tutor_query(
             return res
 
     # ── 4. LLM Intent Classification ─────────────────────────
-    last_question = _get_last_question(chat_history)
+    last_question = _get_latest_topic_question(chat_history)
     intent        = classify_query_intent(query_text, last_question)
 
     is_followup   = intent["is_followup"]
@@ -731,17 +762,12 @@ def execute_rag_tutor_query(
         )
         
         # Check if the query is a generic follow-up (e.g. explain more, break down, simplify)
-        generic_patterns = [
-            "explain more", "explain it more", "explain further", "break it down",
-            "can you explain", "tell me more", "clarify", "briefly", "more details",
-            "explain", "elaborate", "simplify", "help me understand"
-        ]
-        q_clean = query_text.lower().strip().replace("?", "").replace(".", "").replace(",", "")
-        is_generic_followup = any(pat in q_clean for pat in generic_patterns) or len(q_clean.split()) <= 4
+        is_generic_followup = _is_generic_query(query_text)
         
-        if is_generic_followup and last_q:
-            search_query = last_q
-            logger.info(f"[FOLLOWUP] Generic follow-up detected. Reusing last query '{last_q}' for vector search.")
+        if is_generic_followup:
+            topic_q = _get_latest_topic_question(chat_history)
+            search_query = topic_q if topic_q else last_q
+            logger.info(f"[FOLLOWUP] Generic follow-up detected. Reusing topic query '{search_query}' for vector search.")
         else:
             search_query = retrieval_query
             logger.info(f"[FOLLOWUP] Rewritten search query constructed.")
@@ -999,9 +1025,19 @@ def execute_rag_tutor_query(
         diagram_debug = {}
 
         if is_image and image_name:
+            resolved_image_name = image_name
+            GENERIC_IMAGE_WORDS = {
+                "diagram", "image", "figure", "sketch", "draw", "show", "illustration", 
+                "visual", "picture", "photo", "graph", "chart", "diagram?", "image?", "figure?"
+            }
+            if image_name.lower().strip() in GENERIC_IMAGE_WORDS:
+                topic_q = _get_latest_topic_question(chat_history) or search_query
+                resolved_image_name = topic_q
+                logger.info(f"[DIAGRAM] Generic image name '{image_name}' resolved to topic query: '{resolved_image_name}'")
+
             if not is_oos:
                 # CASE 2 — Happy path
-                diagram = fetch_diagram_from_qdrant(image_name, grade, debug_info=diagram_debug)
+                diagram = fetch_diagram_from_qdrant(resolved_image_name, grade, debug_info=diagram_debug)
                 if diagram is None:
                     response_text += (
                         "\n\n*(Note: I currently don't have a diagram for this specific "
@@ -1020,14 +1056,14 @@ def execute_rag_tutor_query(
                             para_lower = para.lower()
                             is_disclaimer = False
                             if "text-based ai" in para_lower or "text-based assistant" in para_lower or "text-based chatbot" in para_lower:
-                                is_disclaimer = True
+                                  is_disclaimer = True
                             elif "cannot" in para_lower and ("display" in para_lower or "show" in para_lower or "draw" in para_lower) and ("image" in para_lower or "diagram" in para_lower or "picture" in para_lower or "figure" in para_lower):
-                                is_disclaimer = True
+                                  is_disclaimer = True
                             elif "unable to" in para_lower and ("display" in para_lower or "show" in para_lower or "draw" in para_lower) and ("image" in para_lower or "diagram" in para_lower or "picture" in para_lower or "figure" in para_lower):
-                                is_disclaimer = True
+                                  is_disclaimer = True
                             elif ("don't have" in para_lower or "do not have" in para_lower) and "capability" in para_lower and ("display" in para_lower or "show" in para_lower or "draw" in para_lower):
-                                is_disclaimer = True
-                                
+                                  is_disclaimer = True
+                                  
                             if not is_disclaimer:
                                 cleaned_paragraphs.append(para)
                                 
@@ -1047,7 +1083,7 @@ def execute_rag_tutor_query(
                     for w in ["diagram", "draw", "figure", "sketch", "image", "show me", "picture", "illustration", "visual"]
                 )
                 if is_explicit_image_request:
-                    diagram = fetch_diagram_from_qdrant(image_name, grade, debug_info=diagram_debug)
+                    diagram = fetch_diagram_from_qdrant(resolved_image_name, grade, debug_info=diagram_debug)
                     if diagram:
                         topic_label = diagram.get("topic", "this topic")
                         response_text = f"Here is the relevant diagram showing {topic_label}:"
